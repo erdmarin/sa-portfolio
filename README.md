@@ -26,5 +26,6 @@ You can find more information about me on  [LinkedIn](https://linkedin.com/in/ma
 
 # Projects
 
-
 A Solutions architect portfolio which includes real-world AWS case studies.
+
+##  Project 1: Highly Available Web Application
