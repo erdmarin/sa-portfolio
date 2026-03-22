@@ -223,25 +223,74 @@ The application is containerised with Docker, producing an immutable image pushe
 
 
 ### Objectives
-- Containerize a web application with Docker
-- Run the container locally
-- Prepare the image for deployment to AWS
-- Deploy the application using ECS Fargate
-- Demonstrate modern cloud deployment practices
+
+1. **Containerize the web application**  
+   Using Docker, produce a minimal, reproducible image with all runtime dependencies included.
+
+2. **Validate locally**  
+   Run the container on a development machine to confirm the image behaves identically to the non-containerized application.
+
+3. **Store the image in Amazon ECR**  
+   Provide a private, managed container registry with built-in vulnerability scanning and IAM-based access control.
+
+4. **Deploy to Amazon ECS Fargate**  
+   Run the container as a managed task with no EC2 instances to provision, patch, or scale.
+
+5. **Expose the application via ALB**  
+   Enable HTTPS termination, health-check-based routing, and a stable DNS endpoint independent of individual task IPs.
+
+6. **Establish observability**  
+   Use CloudWatch Logs to capture all container stdout/stderr for debugging, alerting, and audit.
+
+7. **Demonstrate cloud-native deployment practices**  
+   Provide a foundation for CI/CD integration, auto-scaling, and infrastructure-as-code in future iterations.
 
 ### Architecture
 [Add diagram later]
 
 ### AWS Services Used
-- Amazon ECS Fargate
-- Amazon ECR
-- Application Load Balancer
-- CloudWatch Logs
 
-### Key Decisions
-- ECS chosen over EKS for operational simplicity
-- Containers chosen over EC2-only deployment for portability and consistency
-- Fargate chosen to reduce infrastructure management overhead
+- Amazon ECS Fargate - Runs containerized tasks without EC2 instance management. Handles placement, networking, and task lifecycle. Scales task count independently of infrastructure.
+- Amazon ECR - Private Docker registry with IAM access control, image versioning, and automated vulnerability scanning on every push.
+- Application Load Balancer - Distributes traffic across Fargate tasks in multiple AZs. Terminates TLS, performs health checks, and provides a stable DNS endpoint.
+- Amazon VPC - Isolates the deployment in a private network. Public subnets host the ALB; private subnets host Fargate tasks. Security groups enforce least-privilege inter-component access.
+- AWS IAM - Task execution role grants ECS permission to pull images from ECR and deliver logs to CloudWatch. Task role grants the application runtime access to only the AWS APIs it requires.
+- Amazon CloudWatch Logs - Captures all container stdout/stderr via the awslogs log driver. Enables log search, alerting, and retention policy management without any application-side logging infrastructure.
+- AWS CloudWatch Metrics - ECS service metrics (CPU, memory utilisation, task count) and ALB metrics (request count, target response time, HTTP 5xx rate) provide operational visibility.
+- AWS Secrets Manager - ECS service metrics (CPU, memory utilisation, task count) and ALB metrics (request count, target response time, HTTP 5xx rate) provide operational visibility.
+
+### Key Decisions & Trade-offs
+
+
+**ECS over EKS**  
+
+- ECS does not provide the Kubernetes API surface — no Helm charts, no custom operators, no multi-cluster federation. Teams already invested in Kubernetes tooling would face friction.
+
+EKS adds significant operational complexity: control plane management, node group upgrades, networking add-ons (CNI, CoreDNS), and a steeper learning curve. For a SaaS web application that does not require Kubernetes-native features, ECS provides 90% of the capability at a fraction of the operational overhead. EKS is the right evolution if the workload grows to dozens of microservices with complex inter-service dependencies.
+
+**Fargate over EC2 launch type**
+
+- Fargate tasks have a higher per-vCPU/hour cost than equivalent EC2 instances. Fargate also does not support all EC2 features (e.g., GPU workloads, privileged containers, custom AMIs).
+
+EC2 launch type requires managing EC2 instances: patching, capacity planning, cluster scaling, and potential bin-packing inefficiency. Fargate eliminates all of this — ECS manages placement, the underlying host is never visible, and billing is per-task-second. For a web application without GPU or privileged container requirements, Fargate is the correct default.
+
+**Containers over EC2-only deployment**
+
+- Containerisation adds a build step, requires Docker knowledge, and introduces a container registry as a dependency in the deployment pipeline.
+
+Without containerisation, the application's runtime environment is defined by whatever is installed on the EC2 AMI — leading to environment drift across machines, difficult rollbacks, and slow onboarding. The container image is a self-contained, versioned, auditable deployment unit that can be promoted through environments (dev, staging, prod) without modification.
+
+**Private subnets for Fargate tasks**
+
+- Tasks in private subnets require a NAT Gateway or VPC endpoints for outbound internet access (e.g., calling external APIs, pulling updates). This adds cost (~$0.045/hr per NAT GW).
+  
+Placing Fargate tasks in public subnets would expose task IPs directly to the internet, expanding the attack surface. The ALB in the public subnet is the only internet-facing endpoint; all compute sits behind it in private subnets. The NAT Gateway cost is small relative to the security benefit.
+
+**Secrets Manager over environment variables in task definition** 
+
+- Secrets Manager adds a small latency at container startup (secret fetch) and a per-secret cost ($0.40/secret/month).
+
+Hardcoding secrets in the ECS task definition stores them in plaintext in the AWS console and in IaC state. Secrets Manager provides versioning, automatic rotation, fine-grained IAM access control, and audit trails via CloudTrail. For any production workload, this is the non-negotiable approach.
 
 ### Future Improvements
 - Add autoscaling
