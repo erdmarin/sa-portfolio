@@ -293,7 +293,28 @@ Placing Fargate tasks in public subnets would expose task IPs directly to the in
 Hardcoding secrets in the ECS task definition stores them in plaintext in the AWS console and in IaC state. Secrets Manager provides versioning, automatic rotation, fine-grained IAM access control, and audit trails via CloudTrail. For any production workload, this is the non-negotiable approach.
 
 ### Future Improvements
-- Add autoscaling
-- Add CI/CD pipeline
-- Add Terraform
-- Add Route 53 custom domain
+
+**Short-Term (0-3 months)**
+
+CI/CD pipeline: Implement an automated pipeline (AWS CodePipeline + CodeBuild, or GitHub Actions) that builds the Docker image on every commit, runs automated tests, pushes to ECR on success, and triggers an ECS rolling deployment. This removes all manual steps from the deployment path and adds a quality gate before production.
+
+ECS Service Auto Scaling: Configure target tracking on ALB RequestCountPerTarget and a step scaling policy on CPU utilisation. Set a maximum task count to cap spend. This converts the deployment from fixed-capacity to demand-responsive.
+
+ECR lifecycle policies: Define lifecycle rules to automatically expire untagged images older than 7 days and retain only the last 10 tagged releases. Prevents ECR storage costs from accumulating with stale images.
+
+**Medium-Term (3-12 months)**
+
+Infrastructure as Code (Terraform): Migrate all AWS resources — VPC, subnets, security groups, ALB, ECS cluster, task definition, IAM roles, CloudWatch Log Groups — into Terraform modules. This makes the entire environment version-controlled, reviewable, and reproducible in any AWS account within minutes. Terraform state stored in S3 with DynamoDB locking.
+
+Multi-environment promotion: Extend the CI/CD pipeline to support dev, staging, and production environments as separate ECS clusters (or services within the same cluster). Promotion between environments is triggered by a manual approval gate in the pipeline, not by direct deployment.
+
+Container image hardening: Adopt a minimal base image (e.g., distroless or Alpine), run the container process as a non-root user, and enable read-only root filesystem in the task definition. Schedule weekly ECR image rescans and integrate scan results into the CI/CD pipeline as a deployment gate.
+
+**Long-Term (12+ months)**
+
+Multi-region active-passive: Deploy an identical ECS service in a second AWS region. Use Route 53 health-check-based failover to route traffic to the secondary region if the primary ALB health check fails. Aurora Global Database or RDS read replica provides data in the secondary region with sub-second replication lag.
+
+### Key Outcomes
+
+Containerising the application and deploying to ECS Fargate eliminates the environment inconsistency and manual operational overhead that characterised the previous EC2-based approach — every deployment is now a deterministic promotion of a versioned, scanned image rather than a manual configuration change applied to a live server. The Fargate model removes EC2 instance management entirely, reducing the operational surface to the application and its configuration while AWS handles placement, patching, and host-level availability. The multi-AZ ALB and minimum two-task ECS service configuration provides resilience against both individual task failures and AZ-level events without any manual intervention. The architecture also establishes a clear and incremental upgrade path: CI/CD, auto-scaling, and Terraform are the immediate next steps, each buildable independently without rearchitecting what is already in place.
+
