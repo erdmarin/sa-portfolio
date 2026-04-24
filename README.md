@@ -22,6 +22,9 @@ You can find more information about me on  [LinkedIn](https://linkedin.com/in/ma
 <img src="https://github.com/erdmarin/cloud_cert_logos/blob/main/microsoft_azure_az104_cert.png" width=16% height=15%>
 </a>
 
+<a href="#">
+<img src="https://github.com/erdmarin/cloud_cert_logos/blob/main/ccnaRoutingAndSwitching.png" width=16% height=15%>
+</a>
 
 
 # Projects
