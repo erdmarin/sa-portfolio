@@ -285,13 +285,12 @@ The following steps describe the full request lifecycle from image build through
 
 - Amazon ECS Fargate - Runs containerized tasks without EC2 instance management. Handles placement, networking, and task lifecycle. Scales task count independently of infrastructure.
 - Amazon ECR - Private Docker registry with IAM access control, image versioning, and automated vulnerability scanning on every push.
-- Application Load Balancer - Distributes traffic across Fargate tasks in multiple AZs. Terminates TLS, performs health checks, and provides a stable DNS endpoint.
-- Amazon VPC - Isolates the deployment in a private network. Public subnets host the ALB; private subnets host Fargate tasks. Security groups enforce least-privilege inter-component access.
-- AWS IAM - Task execution role grants ECS permission to pull images from ECR and deliver logs to CloudWatch. Task role grants the application runtime access to only the AWS APIs it requires.
-- Amazon CloudWatch Logs - Captures all container stdout/stderr via the awslogs log driver. Enables log search, alerting, and retention policy management without any application-side logging infrastructure.
-- AWS CloudWatch Metrics - ECS service metrics (CPU, memory utilisation, task count) and ALB metrics (request count, target response time, HTTP 5xx rate) provide operational visibility.
-- AWS Secrets Manager - ECS service metrics (CPU, memory utilisation, task count) and ALB metrics (request count, target response time, HTTP 5xx rate) provide operational visibility.
-
+- Application Load Balancer - Routes HTTP traffic to ECS Fargate tasks. Performs health checks and deregisters unhealthy tasks automatically. Provides a stable DNS endpoint.
+- Amazon VPC - Default VPC used for this implementation. Public subnets host both the ALB and ECS tasks. In production, tasks would move to private subnets.
+- AWS IAM - Execution role grants ECS permission to pull images from ECR and deliver logs to CloudWatch. Task role grants runtime application access to required AWS APIs only.
+- Amazon CloudWatch Logs - Captures all container stdout/stderr via the awslogs log driver. Enables log search and retention management without application-side logging infrastructure.
+- AWS CloudWatch Metrics - ECS and ALB metrics (CPU, memory, request count, 5xx rate) are available natively. Alarms and dashboards not yet configured — planned as a future improvement.
+- AWS Secrets Manager - Not used in this implementation. Recommended for production to inject database credentials and API keys at task launch rather than embedding them in the task definition.
 ### Key Decisions & Trade-offs
 
 
