@@ -343,6 +343,32 @@ Security controls are applied at the network, identity, and image layers. Some p
 - **Immutable ECR image tags:** enable tag immutability in ECR to prevent silent tag reassignment. Production deployments should reference image SHA256 digests, not mutable tags.
 - **AWS WAF:** attach WAF to the ALB with the Core Rule Set and rate limiting rules to protect against OWASP Top 10 vulnerabilities and application-layer DDoS.
 
+### Observability
+
+**Logging — Implemented**
+Every Fargate task is configured with the awslogs log driver, forwarding all container stdout and stderr to a CloudWatch Log Group. Log streams are named per task, enabling straightforward correlation between a specific container instance and its output. This was the primary debugging tool during deployment and the root cause of the ResourceInitializationError described in Debugging & Lessons Learned Section.
+
+**Metrics — Available, Not Yet Configured**
+CloudWatch Metrics are available natively for ECS (CPU utilisation, memory utilisation, running task count) and ALB (RequestCount, TargetResponseTime, HTTPCode_Target_5XX_Count). These metrics are not yet surfaced in a dashboard or tied to alarms. Configuring alarms on 5xx rate and task count is the immediate next observability step.
+
+### Debugging & Lessons Learned
+This section documents a real incident encountered during deployment. 
+
+**Incident: ECS Tasks Failing to Start**
+Issue: ResourceInitializationError
+During initial deployment, ECS tasks repeatedly failed to start and never registered in the ALB target group, resulting in zero healthy targets and no traffic reaching the application.
+
+**Root Cause**
+The CloudWatch Log Group referenced in the ECS task definition did not exist in the correct AWS region. The awslogs log driver attempts to create or write to the log group at container startup. When the log group is absent or in a different region, the container runtime fails before the application process starts, producing a ResourceInitializationError.
+
+**Resolution Steps**
+1. Created the CloudWatch Log Group in the correct AWS region matching the ECS cluster region.
+2. Registered a new ECS task definition revision with the corrected log group configuration.
+3. Recreated the ECS service referencing the new task definition revision.
+4. Confirmed tasks reached RUNNING state and registered as healthy in the ALB target group.
+
+
+   
 ### Future Improvements
 
 **Short-Term (0-3 months)**
