@@ -383,6 +383,7 @@ ECS Service Auto Scaling is not yet configured. The recommended next step is tar
 
 ### Disaster Recovery Considerations
 
+<img src="images/acpDRconsiderations.png"> 
 
    
 ### Future Improvements
