@@ -278,7 +278,7 @@ The following steps describe the full request lifecycle from image build through
 5. **Container processes the request**  
     The running container handles the HTTP request on port 3000 and returns a response through the ALB back to the user.
 
-6. **13.Logs delivered to CloudWatch**  
+6. **Logs delivered to CloudWatch**  
     All container stdout and stderr are forwarded in real time to the CloudWatch Log Group via the awslogs log driver configured in the ECS task definition. Log streams are named per task for easy correlation.
 
 ### AWS Services Used
