@@ -251,7 +251,7 @@ This project focuses on demonstrating containerized deployment using managed AWS
    Enable HTTPS termination, health-check-based routing, and a stable DNS endpoint independent of individual task IPs.
 
 6. **Establish observability**  
-   Use CloudWatch Logs to capture all container stdout/stderr for debugging, alerting, and audit.
+   Use CloudWatch Logs to capture all container output for debugging and audit.
 
 7. **Demonstrate cloud-native deployment practices**  
    Provide a foundation for CI/CD integration, auto-scaling, and infrastructure-as-code in future iterations.
