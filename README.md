@@ -72,7 +72,7 @@ stylesheets, and JavaScript files efficiently. This design ensures resilience, s
 ### Highly Available Web Application Diagram:
 <img src="images/Highly_Scalable_Web_App.png"> 
 
-## Architectural Flow
+## Architecture Flow
 
 User requests travel through a layered set of AWS services. The flow is deterministic, with health-check-based routing at every layer boundary.
 ## Inbound Request Flow Explanation
@@ -259,6 +259,27 @@ This implementation uses the default VPC and public subnets for deployment simpl
 The architecture uses a public-facing ALB as the single entry point, routing traffic to ECS Fargate tasks running in public subnets across two Availability Zones. Images are pulled from ECR at task launch. All container output streams to CloudWatch Logs automatically via the awslogs driver.
 
 [Add diagram later]
+
+## Architecture Flow
+
+The following steps describe the full request lifecycle from image build through to response delivery.
+
+1. **Image build and push**  
+   The developer builds the Docker image locally and tags it. The image is pushed to the Amazon ECR private repository using the AWS CLI. ECR stores the versioned image and runs an automated vulnerability scan on push.
+
+2. **ALB receives user request**  
+   A user sends an HTTP request to the Application Load Balancer DNS endpoint. The ALB listener evaluates routing rules and forwards the request to the registered ECS target group.
+3. **Target group routes to Fargate task**  
+   The ALB target group selects a healthy Fargate task registered against it. The ALB performs health checks on the container health endpoint; unhealthy tasks are deregistered automatically.
+
+4. **ECS Fargate runs the task**  
+   The ECS service maintains the desired task count across both Availability Zones. Fargate pulls the container image from ECR, starts the container, and maps the application port (3000) to the ALB target group port.
+
+5. **Container processes the request**  
+    The running container handles the HTTP request on port 3000 and returns a response through the ALB back to the user.
+
+6. **13.Logs delivered to CloudWatch**  
+    All container stdout and stderr are forwarded in real time to the CloudWatch Log Group via the awslogs log driver configured in the ECS task definition. Log streams are named per task for easy correlation.
 
 ### AWS Services Used
 
