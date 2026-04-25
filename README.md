@@ -391,28 +391,28 @@ ECS Service Auto Scaling is not yet configured. The recommended next step is tar
 
 **Short-Term (0-3 months)**
 
-•	CI/CD pipeline: Implement a GitHub Actions workflow that builds the Docker image on every commit, runs tests, pushes to ECR on success, and triggers an ECS rolling deployment. Removes all manual steps and adds a quality gate before production
+•	**CI/CD pipeline:** Implement a GitHub Actions workflow that builds the Docker image on every commit, runs tests, pushes to ECR on success, and triggers an ECS rolling deployment. Removes all manual steps and adds a quality gate before production
 
-•	Route 53 custom domain + ACM: Register the application domain, issue an ACM certificate, associate it with the ALB HTTPS listener, and create a Route 53 alias record pointing to the ALB. Completes the production endpoint configuration.
+•	**Route 53 custom domain + ACM:** Register the application domain, issue an ACM certificate, associate it with the ALB HTTPS listener, and create a Route 53 alias record pointing to the ALB. Completes the production endpoint configuration.
 
-•	ECS Auto Scaling: Configure target tracking on ALB RequestCountPerTarget and a step scaling policy on CPU utilisation. Set a maximum task count cap to control spend.
+•	**ECS Auto Scaling:** Configure target tracking on ALB RequestCountPerTarget and a step scaling policy on CPU utilisation. Set a maximum task count cap to control spend.
 
-•	CloudWatch alarms: Create alarms on ECS RunningTaskCount, ALB 5xx rate, and CPU utilisation. SNS notifications for on-call alerting.
+•	**CloudWatch alarms:** Create alarms on ECS RunningTaskCount, ALB 5xx rate, and CPU utilisation. SNS notifications for on-call alerting.
 
 
 **Medium-Term (3-12 months)**
 
-•	Terraform IaC: Migrate all AWS resources into Terraform modules — VPC, subnets, security groups, ALB, ECS cluster and service, ECR repository, IAM roles, CloudWatch Log Groups. Enables repeatable environment provisioning, code review of infrastructure changes, and automated DR re-deployment.
+•	**Terraform IaC:** Migrate all AWS resources into Terraform modules — VPC, subnets, security groups, ALB, ECS cluster and service, ECR repository, IAM roles, CloudWatch Log Groups. Enables repeatable environment provisioning, code review of infrastructure changes, and automated DR re-deployment.
 
-•	Private subnets + NAT Gateway: Move Fargate tasks to private subnets. Remove public IP assignment. All egress through NAT Gateway. Eliminates direct internet reachability of task IPs regardless of security group configuration.
+•	**Private subnets + NAT Gateway:** Move Fargate tasks to private subnets. Remove public IP assignment. All egress through NAT Gateway. Eliminates direct internet reachability of task IPs regardless of security group configuration.
 
-•	AWS Secrets Manager: Store all application secrets as Secrets Manager secrets. Reference them in the ECS task definition as valueFrom entries. Rotate secrets without rebuilding or redeploying the container image.
+•	**AWS Secrets Manager:** Store all application secrets as Secrets Manager secrets. Reference them in the ECS task definition as valueFrom entries. Rotate secrets without rebuilding or redeploying the container image.
 
 **Long-Term (12+ months)**
 
-•	Multi-region active-passive: Deploy a passive ECS service in a second region with ECR cross-region replication. Route 53 health-check-based failover routes traffic to the secondary region if the primary ALB health check fails. Reduces full-region RTO from 60 minutes to under 5 minutes.
+•	**Multi-region active-passive:** Deploy a passive ECS service in a second region with ECR cross-region replication. Route 53 health-check-based failover routes traffic to the secondary region if the primary ALB health check fails. Reduces full-region RTO from 60 minutes to under 5 minutes.
 
-•	EKS migration (if warranted): Evaluate EKS if the application grows to 10+ microservices with complex inter-service dependencies or Kubernetes-native tooling requirements. Containerised images are portable — the migration is an orchestration layer change, not an application change.
+•	**EKS migration (if warranted):** Evaluate EKS if the application grows to 10+ microservices with complex inter-service dependencies or Kubernetes-native tooling requirements. Containerised images are portable — the migration is an orchestration layer change, not an application change.
 
 
 ### Key Outcomes
