@@ -355,10 +355,13 @@ CloudWatch Metrics are available natively for ECS (CPU utilisation, memory utili
 This section documents a real incident encountered during deployment. 
 
 **Incident: ECS Tasks Failing to Start**
+
 Issue: ResourceInitializationError
+
 During initial deployment, ECS tasks repeatedly failed to start and never registered in the ALB target group, resulting in zero healthy targets and no traffic reaching the application.
 
 **Root Cause**
+
 The CloudWatch Log Group referenced in the ECS task definition did not exist in the correct AWS region. The awslogs log driver attempts to create or write to the log group at container startup. When the log group is absent or in a different region, the container runtime fails before the application process starts, producing a ResourceInitializationError.
 
 **Resolution Steps**
