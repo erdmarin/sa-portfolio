@@ -296,13 +296,13 @@ The following steps describe the full request lifecycle from image build through
 
 **ECS over EKS**  
 
-- ECS does not provide the Kubernetes API surface — no Helm charts, no custom operators, no multi-cluster federation. Teams already invested in Kubernetes tooling would face friction.
+- ECS does not provide the Kubernetes API surface — no Helm charts, no custom operators, no multi-cluster federation.
 
 EKS adds significant operational complexity: control plane management, node group upgrades, networking add-ons (CNI, CoreDNS), and a steeper learning curve. For a SaaS web application that does not require Kubernetes-native features, ECS provides 90% of the capability at a fraction of the operational overhead. EKS is the right evolution if the workload grows to dozens of microservices with complex inter-service dependencies.
 
 **Fargate over EC2 launch type**
 
-- Fargate tasks have a higher per-vCPU/hour cost than equivalent EC2 instances. Fargate also does not support all EC2 features (e.g., GPU workloads, privileged containers, custom AMIs).
+- Fargate has a higher per-vCPU/hour cost than equivalent EC2 instances; does not support GPU workloads or privileged containers
 
 EC2 launch type requires managing EC2 instances: patching, capacity planning, cluster scaling, and potential bin-packing inefficiency. Fargate eliminates all of this — ECS manages placement, the underlying host is never visible, and billing is per-task-second. For a web application without GPU or privileged container requirements, Fargate is the correct default.
 
@@ -312,17 +312,17 @@ EC2 launch type requires managing EC2 instances: patching, capacity planning, cl
 
 Without containerisation, the application's runtime environment is defined by whatever is installed on the EC2 AMI — leading to environment drift across machines, difficult rollbacks, and slow onboarding. The container image is a self-contained, versioned, auditable deployment unit that can be promoted through environments (dev, staging, prod) without modification.
 
-**Private subnets for Fargate tasks**
+**Public subnets (this implementation)**
 
-- Tasks in private subnets require a NAT Gateway or VPC endpoints for outbound internet access (e.g., calling external APIs, pulling updates). This adds cost (~$0.045/hr per NAT GW).
+- Fargate tasks are assigned public IPs, directly reachable from the internet if security group rules are misconfigured
   
-Placing Fargate tasks in public subnets would expose task IPs directly to the internet, expanding the attack surface. The ALB in the public subnet is the only internet-facing endpoint; all compute sits behind it in private subnets. The NAT Gateway cost is small relative to the security benefit.
+Chosen to reduce deployment complexity for a portfolio implementation. Security groups restrict all inbound task access to the ALB security group only. Private subnets with NAT Gateway is the documented production path.
 
-**Secrets Manager over environment variables in task definition** 
+**Manual CLI deployment (this implementation)** 
 
-- Secrets Manager adds a small latency at container startup (secret fetch) and a per-secret cost ($0.40/secret/month).
-
-Hardcoding secrets in the ECS task definition stores them in plaintext in the AWS console and in IaC state. Secrets Manager provides versioning, automatic rotation, fine-grained IAM access control, and audit trails via CloudTrail. For any production workload, this is the non-negotiable approach.
+- No automated testing gate; deployment is a manual multi-step process with no rollback automation
+  
+Acceptable for initial portfolio deployment. The manual steps are documented and repeatable. CI/CD via GitHub Actions or CodePipeline is the first roadmap item — each manual step maps directly to a pipeline stage.
 
 ### Future Improvements
 
