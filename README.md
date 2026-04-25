@@ -256,6 +256,8 @@ This implementation uses the default VPC and public subnets for deployment simpl
    Provide a foundation for CI/CD integration, auto-scaling, and infrastructure-as-code in future iterations.
 
 ### Architecture
+The architecture uses a public-facing ALB as the single entry point, routing traffic to ECS Fargate tasks running in public subnets across two Availability Zones. Images are pulled from ECR at task launch. All container output streams to CloudWatch Logs automatically via the awslogs driver.
+
 [Add diagram later]
 
 ### AWS Services Used
