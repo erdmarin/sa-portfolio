@@ -371,6 +371,19 @@ The CloudWatch Log Group referenced in the ECS task definition did not exist in 
 4. Confirmed tasks reached RUNNING state and registered as healthy in the ALB target group.
 
 
+### High Availability & Scaling
+
+**Current State**
+The ECS service is configured with a desired task count of 2, distributed across public subnets in two Availability Zones. The ALB performs health checks every 30 seconds; if a task fails, the ALB deregisters it and ECS launches a replacement automatically. This provides resilience against single-task failures and single-AZ events without manual intervention.
+
+**Auto Scaling — Planned**
+
+ECS Service Auto Scaling is not yet configured. The recommended next step is target tracking on ALB RequestCountPerTarget, scaling task count to maintain a defined average request load per task. A step scaling policy on CPU utilisation handles burst scenarios faster than target tracking's convergence window.
+
+
+### Disaster Recovery Considerations
+
+
    
 ### Future Improvements
 
