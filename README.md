@@ -374,6 +374,7 @@ The CloudWatch Log Group referenced in the ECS task definition did not exist in 
 ### High Availability & Scaling
 
 **Current State**
+
 The ECS service is configured with a desired task count of 2, distributed across public subnets in two Availability Zones. The ALB performs health checks every 30 seconds; if a task fails, the ALB deregisters it and ECS launches a replacement automatically. This provides resilience against single-task failures and single-AZ events without manual intervention.
 
 **Auto Scaling — Planned**
