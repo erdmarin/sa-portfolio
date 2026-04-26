@@ -229,8 +229,6 @@ The application is containerised with Docker, producing an immutable image pushe
 ### Implementation Scope
 This implementation uses the default VPC and public subnets for deployment simplicity. Fargate tasks are assigned public IPs. This is an intentional trade-off to reduce complexity while demonstrating core containerization and ECS deployment principles. Production recommendations — private subnets, NAT Gateway, Secrets Manager — are documented throughout and in the Future Improvements section.
 
-<img src="images/implementationScope.png"> 
-
 
 ### Objectives
 
@@ -258,7 +256,9 @@ This implementation uses the default VPC and public subnets for deployment simpl
 ### Architecture
 The architecture uses a public-facing ALB as the single entry point, routing traffic to ECS Fargate tasks running in public subnets across two Availability Zones. Images are pulled from ECR at task launch. All container output streams to CloudWatch Logs automatically via the awslogs driver.
 
-[Add diagram later]
+### Containerized Application Platform Diagram:
+
+<img src="images/ContainerizedApplicationPlatform.png"> 
 
 ## Architecture Flow
 
