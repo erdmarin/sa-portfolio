@@ -418,3 +418,255 @@ ECS Service Auto Scaling is not yet configured. The recommended next step is tar
 ### Key Outcomes
 
 The application was successfully containerised and deployed to ECS Fargate behind an Application Load Balancer, demonstrating consistent and repeatable deployments using versioned container images, reduced operational overhead through serverless container compute, and baseline high availability through a multi-AZ ECS service with automated task replacement. A real deployment incident — ECS tasks failing due to a missing CloudWatch Log Group in the wrong region — was diagnosed and resolved, surfacing practical lessons about resource dependency ordering and region consistency.
+
+
+
+
+# Project 3: Event-Driven Microservices Platform
+
+---
+
+## Overview
+
+This project demonstrates a cloud-native microservices platform deployed on AWS using containerized services, event-driven communication, Infrastructure as Code, and automated CI/CD. The architecture simulates a modern SaaS backend where services are independently deployable, loosely coupled, and capable of scaling horizontally.
+
+Unlike a monolithic application where all functionality is bundled into a single deployment unit, this platform decomposes functionality into three independently managed services communicating through HTTP APIs and asynchronous SQS events. All infrastructure is provisioned by Terraform and all deployments are automated through GitHub Actions.
+
+---
+
+## Business Scenario
+
+A growing SaaS platform required a backend capable of supporting increasing deployment velocity, independent service ownership, and asynchronous business workflows. The previous monolithic deployment model created several operational problems: full redeployments for even minor code changes, tight coupling between business domains, difficult rollback procedures, and no asynchronous processing model for background tasks. Manual deployment workflows amplified the risk of human error on every release.
+
+The solution decomposes the platform into three independently deployable services, introduces SQS for asynchronous event processing, provisions all infrastructure through Terraform, and automates every deployment step through GitHub Actions.
+
+---
+
+## Architecture
+
+The architecture separates synchronous HTTP request handling from asynchronous message processing into two distinct planes. User and order requests enter through the Application Load Balancer and are routed by path prefix to the appropriate ECS service. Order events are published to SQS and processed independently by the notification-worker, which has no HTTP interface and is never registered with the ALB.
+
+```
+User
+  ↓
+Application Load Balancer
+  ├── /        → user-service   (ECS Fargate, AZ A + B)
+  └── /orders  → order-service  (ECS Fargate, AZ A + B)
+                      ↓
+                    SQS Queue
+                      ↓
+             notification-worker (ECS Fargate, polling)
+```
+
+All services pull images from Amazon ECR at task launch. All container output streams to CloudWatch Logs via the awslogs driver. IAM execution roles govern ECR pull and log delivery permissions per service.
+
+**Architecture Diagram:**
+
+[diagram to be added]
+
+---
+
+## Architecture Flow
+
+1. **Developer pushes code** — a commit to the main branch triggers the GitHub Actions workflow automatically.
+
+2. **CI/CD pipeline executes** — the pipeline builds Docker images for all three services, pushes them to ECR tagged with the Git commit SHA, and triggers rolling ECS deployments. No manual steps required.
+
+3. **User request enters ALB** — users access the platform through the ALB DNS endpoint. The ALB evaluates path-based listener rules and routes to the correct ECS target group.
+
+4. **ECS Fargate processes requests** — ECS services maintain healthy tasks across two Availability Zones. Fargate pulls images from ECR, starts containers, and registers tasks with the ALB target group. Unhealthy tasks are replaced automatically.
+
+5. **Order service publishes event** — when the order-service receives an order request, it publishes an asynchronous message to SQS before returning the HTTP response. The response does not wait for notification processing.
+
+   Example SQS event payload:
+   ```json
+   {
+     "eventType": "OrderCreated",
+     "orderId": "12345",
+     "item": "Laptop",
+     "quantity": 1
+   }
+   ```
+
+6. **Notification worker processes queue** — the notification-worker continuously polls SQS using long polling. On receiving a message it processes the event, logs the result, and deletes the message. Failed messages are retried up to three times before moving to the dead-letter queue.
+
+7. **Logs delivered to CloudWatch** — all container stdout and stderr is forwarded in real time to CloudWatch Logs via the awslogs driver. Separate log groups per service simplify troubleshooting.
+
+---
+
+## Services
+
+**user-service**
+
+Stateless Node.js HTTP API serving user-related requests. Independently deployable with no dependency on the order or notification subsystems. Routed via ALB path `/` to its own target group. Runs on port 3000.
+
+**order-service**
+
+Handles order creation and acts as the integration point between the synchronous HTTP plane and the async messaging plane. On a successful POST /orders request, the service publishes an OrderCreated event to SQS before returning the HTTP 201 response. The IAM task role is scoped to `sqs:SendMessage` on the order events queue only.
+
+**notification-worker**
+
+Asynchronous SQS consumer with no HTTP interface and no ALB registration. Runs as an ECS Fargate task that continuously polls the queue using long polling (WaitTimeSeconds = 20). Processes messages, logs results, and deletes messages on success. Scales independently based on queue depth rather than HTTP traffic. The IAM task role is scoped to `sqs:ReceiveMessage` and `sqs:DeleteMessage` only — it cannot send messages.
+
+---
+
+## AWS Services Used
+
+- **Amazon ECS Fargate** — runs all three services as containerized tasks without EC2 instance management. Each service is an independent ECS service with its own task definition and scaling configuration.
+- **Amazon ECR** — private repositories per service with tag immutability, vulnerability scanning on push, and lifecycle policies managing image retention.
+- **Application Load Balancer** — path-based routing to user-service and order-service target groups. Health checks deregister unhealthy tasks automatically.
+- **Amazon SQS** — decouples order-service from notification-worker. Standard queue with a dead-letter queue, long polling, and SSE encryption at rest.
+- **Amazon VPC** — ALB in public subnets; ECS tasks in private subnets. NAT Gateway per AZ provides outbound internet access.
+- **AWS IAM** — OIDC identity provider for GitHub Actions (no static access keys). Separate ECS execution role and per-service task roles, all least-privilege scoped to specific resource ARNs.
+- **Amazon CloudWatch Logs** — separate log groups per service. awslogs driver captures all container output.
+- **Terraform** — all infrastructure as code. Remote state in S3 with DynamoDB locking. No resources created manually.
+- **GitHub Actions** — CI/CD pipeline on push to main. OIDC authentication, Docker build, ECR push, ECS rolling deployment.
+
+---
+
+## Infrastructure as Code — Terraform
+
+All AWS infrastructure is defined in Terraform. No resources are created manually through the console. This makes the entire environment reproducible from a single `terraform apply`, peer-reviewable through pull requests, and recoverable without manual reconstruction.
+
+Terraform provisions: VPC and subnets, Internet Gateway and NAT Gateways, ECR repositories, ALB and target groups, ECS cluster and services, SQS queue and dead-letter queue, IAM roles and policies, and CloudWatch log groups.
+
+Remote state is stored in S3 with DynamoDB table locking to prevent concurrent apply conflicts. State is never committed to the Git repository.
+
+Each service has its own IAM task role scoped only to the AWS APIs it calls at runtime. This is a deliberate security boundary — compromising one service does not grant access to another service's resources.
+
+---
+
+## CI/CD Pipeline — GitHub Actions
+
+Every push to the main branch triggers an automated pipeline. No manual deployment steps are required after initial infrastructure setup.
+
+The pipeline: checks out the repository, authenticates to AWS via OIDC (no long-lived access keys stored as GitHub secrets), logs into ECR, builds and pushes Docker images tagged with the Git commit SHA, updates the ECS services to the new image tags, and polls until all services reach a stable state. A failed health check fails the pipeline — old tasks remain in service until the issue is resolved.
+
+Using commit SHA as the image tag means every deployed image is traceable to an exact source code revision. Rolling back is redeploying the previous commit SHA.
+
+---
+
+## Security Considerations
+
+- **Network isolation** — ECS tasks run in private subnets. The ALB is the only internet-facing component. Security groups permit only ALB-originated traffic to reach ECS tasks.
+- **Least-privilege IAM** — each service has its own task role scoped to only the AWS APIs it calls. order-service can send SQS messages but cannot receive or delete them. notification-worker can receive and delete but cannot send. user-service has no queue access.
+- **OIDC for CI/CD** — GitHub Actions assumes an IAM role via OIDC. No static AWS credentials stored as repository secrets.
+- **ECR private registry** — all images in private ECR repositories with IAM authentication and automated vulnerability scanning on every push.
+- **SQS encryption** — order event messages encrypted at rest using SSE-SQS managed encryption.
+- **AWS WAF** — not yet configured. Recommended as the next security addition on the ALB with the Core Rule Set and rate limiting rules.
+
+---
+
+## High Availability & Scaling
+
+ECS services are deployed across two Availability Zones. The ALB distributes traffic to healthy tasks in both AZs and automatically deregisters unhealthy tasks. ECS replaces failed tasks without manual intervention. Rolling deployments maintain capacity throughout a release.
+
+The user-service and order-service scale on ALB RequestCountPerTarget. The notification-worker scales on SQS `ApproximateNumberOfMessagesVisible` — queue depth is the correct scaling signal for a consumer, not CPU utilisation. A worker waiting on an empty queue has near-zero CPU, so CPU-based scaling would never trigger.
+
+SQS absorbs traffic bursts independently of ECS capacity. If the notification-worker temporarily falls behind, messages accumulate in the queue rather than being dropped. The DLQ captures messages that fail after three attempts for manual investigation.
+
+---
+
+## Key Decisions & Trade-offs
+
+**Microservices over monolith**
+Three services means three pipelines, three ECR repositories, and three sets of IAM roles — a larger operational surface than a single deployment. The trade-off is justified because each service has a distinct responsibility and a distinct scaling profile. The notification-worker scales on queue depth independently of HTTP traffic. A monolith forces all three concerns to scale and deploy together.
+
+**SQS over synchronous notification**
+SQS introduces eventual consistency — the user receives an HTTP response before the notification is guaranteed to be processed. The trade-off is the right choice here because synchronous notification would couple order creation latency to the notification system. A slow or unavailable notification service would degrade every POST /orders call. SQS absorbs bursts and decouples failure domains.
+
+**ECS over EKS**
+ECS provides the necessary orchestration — task scheduling, health checks, rolling deployments, Auto Scaling — at significantly lower operational overhead than EKS. Kubernetes adds control plane management, node group upgrades, and networking add-ons without proportional benefit for three services with straightforward patterns. EKS is the right evolution when service count and inter-service complexity justifies it.
+
+**Public ALB over API Gateway**
+ALB was chosen for simplicity and lower operational overhead for container-based HTTP routing. API Gateway would provide request throttling, API key management, and API lifecycle tooling, but adds architectural complexity that is not needed for this workload.
+
+**Terraform over CloudFormation**
+Terraform is the dominant IaC tool in the industry, appearing in the majority of cloud engineering job postings. HCL is more readable than CloudFormation YAML for complex configurations and the provider ecosystem extends beyond AWS.
+
+**Standard SQS over FIFO**
+Standard queues provide at-least-once delivery — the worker may occasionally receive duplicate messages. FIFO throughput limits and additional cost are not justified here because order notifications are idempotent. Processing the same notification twice has no harmful side effect.
+
+---
+
+## Lessons Learned
+
+Several practical lessons were encountered and resolved during implementation.
+
+**CloudWatch log groups must exist before ECS tasks start.** ECS tasks fail with a `ResourceInitializationError` if the CloudWatch log group referenced in the task definition does not exist in the correct region. Terraform solves this by creating log groups before the ECS service as part of the same apply — resource dependency ordering is handled automatically.
+
+**ECS rolling deployments run two task versions simultaneously.** During a deployment, both old and new tasks are briefly registered with the ALB target group. This is expected behaviour but means APIs should be backward-compatible during the transition window. Breaking API changes require a versioned endpoint strategy.
+
+**Terraform destroy depends entirely on state accuracy.** `terraform destroy` only removes resources tracked in the Terraform state file. Resources created outside Terraform are not destroyed. This reinforced the discipline of managing all resources through IaC from the start.
+
+**ECR repositories require force deletion when images exist.** `terraform destroy` fails on an ECR repository with images unless `force_delete = true` is set in the resource configuration. This is a safety default, not a bug — but must be explicitly handled in development and portfolio environments.
+
+**GitHub Actions requires workflow permissions for pipeline file changes.** Workflows that modify `.github/workflows/` files require the `contents: write` permission or a PAT with workflow scope. The standard `GITHUB_TOKEN` does not include this permission by default.
+
+---
+
+## Disaster Recovery
+
+| Failure scenario | Recovery behaviour |
+|---|---|
+| Single ECS task crash | ECS detects failure within 30 seconds and launches a replacement. No manual action required. |
+| Single AZ outage | Tasks in the surviving AZ continue serving traffic. ECS launches replacements in the surviving AZ automatically. |
+| Bad image deployed | New tasks fail health checks. Rolling deployment stops. Old tasks remain in service. Rollback: redeploy previous commit SHA. |
+| SQS message backlog | Messages accumulate in queue for up to 4 days. Auto Scaling increases worker task count to drain the backlog. No messages lost. |
+| Worker crash mid-processing | Message returns to queue after visibility timeout. Retried up to 3 times then moved to DLQ. DLQ alarm triggers investigation. |
+| Full region failure | Single-region architecture. Recovery: `terraform apply` in a secondary region. ECR cross-region replication recommended for images. Target RTO: < 60 minutes. |
+
+---
+
+## Future Improvements
+
+**Short-term**
+- HTTPS listener with ACM certificate and Route 53 custom domain
+- CloudWatch alarms on ECS task count, ALB 5xx rate, and SQS DLQ message count with SNS notifications
+- Expand CI/CD pipeline to build and deploy all three services in parallel
+- AWS WAF on the ALB
+
+**Medium-term**
+- EventBridge in place of direct SQS publish — decouples the order-service from knowing the consumer's queue URL and allows additional consumers without code changes
+- Multi-environment Terraform workspaces — dev, staging, and production from the same code with pipeline promotion gates
+- AWS X-Ray distributed tracing across service boundaries
+- Secrets Manager for service configuration instead of ECS task definition environment variables
+
+**Long-term**
+- Blue/green deployments via CodeDeploy for ECS — instant rollback without rolling deployment transition window
+- Multi-region active-passive with ECR cross-region replication and Route 53 health-check failover
+- EKS evaluation if service count grows beyond 10 with complex inter-service dependencies
+
+---
+## Cost Estimate
+
+The following estimate covers the baseline infrastructure cost for this architecture running in eu-central-1 (Frankfurt). All figures are approximate and based on AWS public pricing as of 2025.
+
+**Assumptions:** 2 tasks per service (6 Fargate tasks total), 0.25 vCPU / 0.5 GB memory per task, 20 GB ECR storage across all repositories, 1 million SQS requests per month, moderate ALB traffic (~1 GB processed per month), 1 GB CloudWatch Logs ingestion per month.
+
+| Component | Configuration | Estimated monthly cost |
+|---|---|---|
+| ECS Fargate — compute | 6 tasks × 0.25 vCPU × 730 hrs | ~$18 |
+| ECS Fargate — memory | 6 tasks × 0.5 GB × 730 hrs | ~$6 |
+| Application Load Balancer | 1 ALB + ~1 GB processed | ~$18 |
+| NAT Gateway | 2 × NAT GW (1 per AZ) + ~5 GB data | ~$72 |
+| Amazon ECR | 20 GB storage | ~$2 |
+| Amazon SQS | 1M requests (Standard queue) | ~$0.40 |
+| CloudWatch Logs | 1 GB ingestion + storage | ~$1 |
+| S3 (Terraform state) | Minimal storage + requests | ~$0.50 |
+| **Total baseline** | | **~$118 / month** |
+
+**The dominant cost is NAT Gateway** at roughly 60% of the total bill. Two NAT Gateways at $0.045/hr each account for ~$66/hr fixed cost before data processing charges. This is the correct production architecture — one NAT Gateway per AZ eliminates cross-AZ single points of failure — but it is the most significant cost driver for a small workload like this.
+
+**Cost optimisation options for production scale:**
+
+- Replace NAT Gateways with VPC endpoints for ECR and CloudWatch — the two services ECS tasks contact most frequently. This removes the data processing charge for image pulls and log delivery, which can be significant at scale. VPC endpoints for ECR (two endpoints required) cost ~$15/month combined but pay for themselves once data transfer volume is moderate.
+- Apply ECS Fargate Savings Plans at 1-year commitment — typically 20% discount on Fargate compute and memory costs. Worth purchasing once baseline task count is stable after a few weeks of production traffic data.
+- Right-size task CPU and memory after 2 weeks of CloudWatch metrics. The 0.25 vCPU / 0.5 GB allocation is a conservative starting point. Many Node.js API containers can run comfortably at 0.25 vCPU / 0.25 GB, reducing Fargate costs by ~25%.
+- At higher traffic volume (10M+ SQS messages/month), review Standard versus FIFO pricing. Standard queue pricing is $0.40 per million requests — it remains negligible unless notification volume grows significantly.
+
+**At peak scale (10 tasks per service, 30 Fargate tasks total),** the Fargate line grows to approximately $150/month and the ALB LCU cost increases with request volume, but the NAT Gateway fixed cost remains the same — making it proportionally less significant at scale. The architecture's cost profile is well-suited to growth.
+
+## Key Outcomes
+
+This project demonstrates end-to-end ownership of a cloud-native platform — from application code through containerisation, infrastructure provisioning, and automated deployment. The three-service architecture cleanly separates synchronous HTTP concerns from asynchronous event processing, showing event-driven thinking and an understanding of where coupling creates operational risk. Terraform provisions the entire environment reproducibly with least-privilege IAM and no manually created resources. The GitHub Actions pipeline with OIDC authentication automates every deployment step with full traceability from Git commit to running container. Together with Projects 1 and 2, this portfolio covers the full cloud engineering spectrum: traditional HA infrastructure, container-native deployment, and automated microservices with IaC — reflecting how modern cloud platforms are built and operated.
