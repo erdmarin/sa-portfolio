@@ -461,7 +461,7 @@ All services pull container images from Amazon ECR at task launch. All container
 
 **Architecture Diagram:**
 
-[diagram to be added]
+<img src="images/event_driven_microservices_platform.png"> 
 
 ## Architecture Flow
 
