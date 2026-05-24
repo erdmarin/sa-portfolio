@@ -499,7 +499,7 @@ Asynchronous SQS consumer with no HTTP interface and no ALB registration. Runs a
 - **Amazon ECR** — private repositories per service with tag immutability, automated vulnerability scanning on every push, and lifecycle policies managing image retention.
 - **Application Load Balancer** — path-based routing to user-service and order-service target groups. Health checks deregister unhealthy tasks automatically and provide a stable DNS endpoint independent of individual task IPs.
 - **Amazon SQS** — decouples order-service from notification-worker. Standard queue with a dead-letter queue, long polling, and SSE encryption at rest.
-- **Amazon VPC** — ALB in public subnets; ECS tasks in private subnets. NAT Gateway per AZ provides outbound internet access for private-subnet tasks without inbound exposure.
+- **Amazon VPC** — Default VPC used for this implementation. ALB and ECS tasks both run in public subnets. In production, tasks would move to private subnets behind a NAT Gateway.
 - **AWS IAM** — OIDC identity provider for GitHub Actions eliminating static access keys. Separate ECS execution role and per-service task roles, all least-privilege scoped to specific resource ARNs.
 - **Amazon CloudWatch Logs** — separate log groups per service. awslogs driver captures all container output with configurable retention per environment.
 - **Amazon CloudWatch Metrics** — ECS service metrics and ALB metrics available natively. SQS ApproximateNumberOfMessagesVisible drives notification-worker Auto Scaling.
@@ -512,7 +512,7 @@ All AWS infrastructure is defined in Terraform. No resources are created manuall
 
 | File | Resources provisioned |
 |---|---|
-| networking.tf | VPC, public and private subnets across two AZs, Internet Gateway, NAT Gateways, route tables |
+| networking.tf | Default VPC used. Public subnets across two AZs referenced for ALB and ECS task placement |
 | ecr.tf | Three ECR repositories (one per service), tag immutability, lifecycle policies |
 | alb.tf | Internet-facing ALB, two target groups, path-based listener rules, health check configuration |
 | ecs.tf | ECS cluster, three task definitions, three ECS services with desired count and Auto Scaling |
@@ -536,7 +536,7 @@ The OIDC trust relationship is defined in Terraform as an IAM identity provider 
 
 ## Security Considerations
 
-- **Network isolation** — ECS tasks run in private subnets. The ALB is the only internet-facing component. Security groups permit only ALB-originated traffic to reach ECS tasks on the container port.
+- **Network isolation** — ECS tasks run in public subnets with public IPs assigned in this implementation. Security groups restrict all inbound access to ALB-originated traffic only. Private subnets with NAT Gateway is the documented production path.
 - **Least-privilege IAM** — each service has its own task role scoped to only the AWS APIs it calls. The per-service breakdown is documented in the Services and Terraform sections above.
 - **OIDC for CI/CD** — GitHub Actions assumes an IAM role via OIDC. No static AWS credentials are stored as repository secrets. Credentials are valid only for the duration of the pipeline run.
 - **ECR private registry** — all images stored in private ECR repositories with IAM authentication and automated vulnerability scanning on every push.
