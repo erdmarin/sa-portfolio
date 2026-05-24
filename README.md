@@ -614,12 +614,11 @@ Assumptions: 2 tasks per service (6 Fargate tasks total), 0.25 vCPU and 0.5 GB m
 | ECS Fargate — compute (6 tasks × 0.25 vCPU × 730 hrs) | ~$18 |
 | ECS Fargate — memory (6 tasks × 0.5 GB × 730 hrs) | ~$6 |
 | Application Load Balancer | ~$18 |
-| NAT Gateway (2 × per AZ + data processing) | ~$72 |
 | Amazon ECR (20 GB storage) | ~$2 |
 | Amazon SQS | ~$0.40 |
 | CloudWatch Logs | ~$1 |
 | S3 and DynamoDB (Terraform state) | ~$0.50 |
-| **Total baseline** | **~$118 / month** |
+| **Total baseline** | **~$46 / month** |
 
 The dominant cost is NAT Gateway at roughly 60% of the total bill. Two NAT Gateways are the correct production architecture — one per AZ eliminates cross-AZ single points of failure — but they carry a fixed hourly cost regardless of traffic volume.
 
