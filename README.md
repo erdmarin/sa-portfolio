@@ -620,11 +620,11 @@ Assumptions: 2 tasks per service (6 Fargate tasks total), 0.25 vCPU and 0.5 GB m
 | S3 and DynamoDB (Terraform state) | ~$0.50 |
 | **Total baseline** | **~$46 / month** |
 
-The dominant cost is NAT Gateway at roughly 60% of the total bill. Two NAT Gateways are the correct production architecture — one per AZ eliminates cross-AZ single points of failure — but they carry a fixed hourly cost regardless of traffic volume.
+The dominant cost at baseline is the Application Load Balancer, which carries a fixed hourly charge regardless of traffic volume. Fargate compute and memory scale linearly with task count and are the primary cost driver at higher scale.
+The most impactful cost optimisation at production scale is adding VPC endpoints for ECR and CloudWatch.
+Moving ECS tasks to private subnets — the recommended production path — requires a NAT Gateway for outbound traffic, which costs approximately $72/month for two AZ-redundant gateways. VPC endpoints for ECR and CloudWatch route image pull and log delivery traffic privately within AWS, significantly reducing the NAT Gateway data processing charge for those high-frequency flows.
 
-The most impactful cost optimisation at scale is replacing NAT Gateway data processing for ECR and CloudWatch with VPC endpoints. ECS tasks contact these two services most frequently — image pulls and log delivery. VPC endpoints route this traffic privately within AWS, eliminating the NAT Gateway data processing charge entirely for those flows. At higher image pull frequency the saving is material.
-
-At peak scale with 10 tasks per service, the Fargate compute line grows proportionally but the NAT Gateway fixed cost remains constant, making it a smaller percentage of the total bill. Fargate Savings Plans at 1-year commitment reduce compute and memory costs by approximately 20% and are worth purchasing once baseline task count is stable.
+At peak scale with 10 tasks per service, the Fargate compute line grows to approximately $150/month. Fargate Savings Plans at 1-year commitment reduce compute and memory costs by approximately 20% and are worth purchasing once baseline task count is stable after a few weeks of production traffic data.
 
 ## Key Outcomes
 
