@@ -2,7 +2,7 @@
 
 **IT Infrastructure & Solutions Architecture**
 
-I'm an IT Infrastructure Engineer actively working on AWS solution architecture designs, cloud engineering and DevOps projects.
+I'm an IT Infrastructure professional with 8 years of experience transitioning into AWS Solutions Architecture
 
 Focus areas:
 
