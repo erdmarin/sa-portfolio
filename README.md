@@ -819,7 +819,7 @@ Mandatory resource tagging enforces: Application, Environment, Owner, CostCenter
 
 **Architecture diagram:**
 
-[See architecture-diagram.png]
+<img src="images/project_4-enterprise_migration_case.png"> 
 
 The target production architecture runs in the Prod Account VPC across four layers.
 
