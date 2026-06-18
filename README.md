@@ -26,6 +26,10 @@ You can find more information about me on  [LinkedIn](https://linkedin.com/in/ma
 <img src="https://github.com/erdmarin/cloud_cert_logos/blob/main/ccnaRoutingAndSwitching.png" width=16% height=15%>
 </a>
 
+<a href="https://www.credly.com/badges/89e6d395-1527-4e01-a1fa-09db069caf54/email">
+<img src="https://github.com/erdmarin/cloud_cert_logos/blob/main/awsAIFbadge.png" width=17% height=24%>
+</a>
+
 
 # Projects
 
